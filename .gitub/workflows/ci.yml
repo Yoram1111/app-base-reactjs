@@ -1,0 +1,54 @@
+name: CI - Build & Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: react-app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: react-app
+        run: npm install
+
+      - name: Build
+        working-directory: react-app
+        run: npm run build
+
+      - name: Start app
+        working-directory: react-app
+        run: |
+          npm start > app.log 2>&1 &
+          echo $! > app.pid
+
+      - name: Wait for server
+        working-directory: react-app
+        run: |
+          npx --yes wait-on http://localhost:3000
+
+      - name: Test with curl
+        run: |
+          curl -I http://localhost:3000 | grep "200"
+
+      - name: Show logs if failed
+        if: failure()
+        working-directory: react-app
+        run: cat app.log
+
+      - name: Stop app
+        if: always()
+        working-directory: react-app
+        run: |
+          kill $(cat app.pid) || true
